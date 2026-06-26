@@ -22,4 +22,5 @@
 plan.md
 steps.md
 
-results/
+# Raw simulation output — large recordings
+scripts/results/
