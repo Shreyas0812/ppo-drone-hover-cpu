@@ -1,12 +1,99 @@
 # PPO Drone Hover — ESE 6510 Physical Intelligence
 
-This branch (`gpb-ppo-hover`) is a personal learning sandbox for understanding PPO from first principles before writing the main implementation. The goal was to build a clean, well-commented PPO training loop and get a quadrotor to hover using `gym-pybullet-drones`, with each line of code directly traceable back to the math in my handwritten notes.
+A working proof-of-concept implementation of **Proximal Policy Optimization (PPO)** from scratch, applied to quadrotor control in the `gym-pybullet-drones` simulator. The policy successfully learns to ascend toward the target altitude, demonstrating that the PPO algorithm and all its components (GAE, clipped surrogate objective, entropy regularisation) are functioning correctly. The gap to stable long-term hover is a reward engineering problem, not an algorithmic one — every line of code is directly traceable back to the math in handwritten notes.
 
 ---
 
-## What This Branch Is
+## Demo
 
-A from-scratch implementation of **Proximal Policy Optimization (PPO)** applied to the `HoverAviary` drone environment. It is intentionally not optimized — the priority was understanding, not performance. Every design decision is explained inline and mapped to the relevant equations in `notes_to_code_mapping.md`.
+![Drone Simulation](results/demo.gif)
+
+The trained policy consistently lifts the drone toward the 1.0m target altitude — the core PPO learning loop is working. Episodes end when the drone loses orientation stability (~1.8s average), which is a reward shaping issue: the upward-velocity bonus incentivised fast ascent rather than stable hover. Fixing this (symmetric altitude-error reward + higher gamma) is the natural next step.
+
+![Evaluation Trajectory](results/eval_trajectory.png)
+
+---
+
+## Setup
+
+**Requirements:** Python 3.10+, [Anaconda](https://www.anaconda.com/)
+
+```bash
+# Clone the repo
+git clone <repo-url>
+cd ppo_drone_racing
+
+# Create and activate a conda environment
+conda create -n drone_racing python=3.10 -y
+conda activate drone_racing
+
+# Install dependencies
+pip install -r requirements.txt
+```
+
+---
+
+## Running
+
+**Train:**
+```bash
+conda activate drone_racing
+cd scripts
+python train.py
+```
+
+- Logs metrics (reward, losses, entropy, KL, explained variance) to `training_log.csv` every 10 iterations
+- Saves `checkpoint.pt` every 100 iterations — automatically resumes if one exists
+- Saves final `policy.pt` on completion
+
+**Evaluate:**
+```bash
+conda activate drone_racing
+cd scripts
+python eval.py
+```
+
+Runs the deterministic policy (mean action, no sampling noise) for 5000 steps, printing position, velocity, reward, and motor commands every 50 steps.
+
+**Plot training curves:**
+```bash
+conda activate drone_racing
+python plot_results.py
+```
+
+Reads `training_log.csv` and saves a 6-panel training curve figure to `results/training_curves.png`.
+
+**Plot evaluation trajectory:**
+```bash
+conda activate drone_racing
+python plot_trajectory.py
+```
+
+Runs the trained policy for 300 steps and saves altitude, drift, and reward plots to `results/eval_trajectory.png`.
+
+---
+
+## Results
+
+![Training Curves](results/training_curves.png)
+
+| Metric | Value |
+|---|---|
+| Final mean reward | ~1.91 (up from ~1.0 at iteration 10) |
+| Explained variance (critic) | ~0.83 |
+| Clip fraction | 0.03–0.09 (healthy trust region throughout) |
+| Mean episode length | ~54 steps (~1.8s at 30Hz) |
+| Training iterations | 2000 × 2048 steps ≈ 4M environment steps |
+| Training time | ~2.5 hours (CPU) |
+
+Key convergence indicators and what they show:
+- **Mean reward** climbed from ~1.0 → ~1.9 and stabilised — driven largely by the altitude shaping bonus, reflecting learned ascent behaviour
+- **Explained variance** rose from near-zero to ~0.83 — critic accurately predicts returns, confirming the value function learned the task structure
+- **Value loss** dropped sharply from ~18 → ~6 in the first 100 iterations — critic converged quickly, giving the actor reliable advantage estimates early on
+- **Clip fraction** stayed in the 0.03–0.09 range throughout — PPO's trust region constraint was active but not overloaded
+- **Policy entropy** rose initially (exploration phase) then settled at ~6.4 — no entropy collapse, policy remained stochastic throughout training
+
+**POC verdict:** PPO worked — the algorithm converged, the critic learned, and the policy improved measurably. The drone doesn't yet achieve stable hover because the reward shaped it to climb fast, not to stabilise. That's a reward engineering problem, not an algorithmic one.
 
 ---
 
@@ -17,9 +104,12 @@ scripts/
 ├── actor_critic.py    # Actor-Critic neural network (Gaussian policy + value function)
 ├── rollout_buffer.py  # Trajectory storage + GAE advantage computation
 ├── ppo.py             # PPO clipped surrogate objective update step
-├── train.py           # Main training loop
+├── train.py           # Main training loop (saves checkpoint.pt, policy.pt, training_log.csv)
 └── eval.py            # Evaluation / inference (deterministic policy)
 
+plot_results.py            # Plots training curves from training_log.csv
+plot_trajectory.py         # Runs trained policy and saves eval trajectory plot
+requirements.txt           # Python dependencies
 notes_to_code_mapping.md   # Line-by-line mapping of code to handwritten notes
 params.md                  # All hyperparameters, metrics, and tuning guide
 ```
@@ -97,35 +187,17 @@ See [params.md](params.md) for the full hyperparameter reference, metric interpr
 
 ---
 
-## Running
-
-**Train:**
-```bash
-cd scripts
-python train.py
-```
-
-Training saves a checkpoint to `checkpoint.pt` every 100 iterations and a final `policy.pt` at completion. If `checkpoint.pt` exists, training automatically resumes from where it left off.
-
-**Evaluate:**
-```bash
-cd scripts
-python eval.py
-```
-
-Loads `policy.pt` (or falls back to `checkpoint.pt`) and runs the deterministic policy (mean action, no sampling noise) for 5000 steps, printing position, velocity, and motor commands every 50 steps.
-
----
-
-## Dependencies
-
-- `gym-pybullet-drones`
-- `torch`
-- `numpy`
-
----
-
 ## Notes & References
 
-- [notes_to_code_mapping.md](notes_to_code_mapping.md) — maps every major code block to its corresponding equation in the handwritten course notes (pages referenced throughout)
+- [notes_to_code_mapping.md](notes_to_code_mapping.md) — maps every major code block to its corresponding equation in the handwritten course notes
 - [params.md](params.md) — complete hyperparameter table, metric interpretation guide, and step-by-step tuning diagnostic
+
+### Citations
+
+Schulman, J., Wolski, F., Dhariwal, P., Radford, A., & Klimov, O. (2017).
+*Proximal Policy Optimization Algorithms.* arXiv:1707.06347.
+https://arxiv.org/abs/1707.06347
+
+Panerati, J., Zheng, H., Zhou, S., Xu, J., Prorok, A., & Schoellig, A. P. (2021).
+*Learning to Fly — a Gym Environment with PyBullet Physics for Reinforcement Learning of Multi-agent Quadcopter Control.*
+IEEE/RSJ IROS 2021. https://github.com/utiasDSL/gym-pybullet-drones
