@@ -24,6 +24,7 @@ Returns:
 - Trained policy network saved implicitly through optimizer updates
 """
 
+import csv
 import os
 os.environ['KMP_DUPLICATE_LIB_OK'] = 'TRUE'
 
@@ -55,6 +56,18 @@ if os.path.exists("checkpoint.pt"):
     optimizer.load_state_dict(checkpoint["optimizer"])
     start_iteration = checkpoint["iteration"] + 1
     print(f"Resuming from iteration {start_iteration}")
+
+LOG_FILE = "../training_log.csv"
+LOG_FIELDS = ["iteration", "mean_reward", "mean_value", "mean_advantage",
+              "mean_ep_len", "policy_loss", "value_loss", "entropy",
+              "approx_kl", "clip_frac", "explained_var"]
+
+# Write header only on a fresh run; append when resuming
+log_mode = "a" if start_iteration > 0 else "w"
+log_file = open(LOG_FILE, log_mode, newline="")
+csv_writer = csv.DictWriter(log_file, fieldnames=LOG_FIELDS)
+if log_mode == "w":
+    csv_writer.writeheader()
 
 for iteration in range(start_iteration, max_iterations):
     # Collect experience
@@ -135,6 +148,20 @@ for iteration in range(start_iteration, max_iterations):
         mean_ep_len = sum(ep_lengths) / len(ep_lengths) if ep_lengths else float('nan')
         print(f"mean reward: {buffer.rewards.mean():.3f} mean value: {buffer.values.mean():.3f} mean advantage: {buffer.advantages.mean():.3f} mean_ep_len: {mean_ep_len:.1f}")
         print(f"policy_loss: {policy_loss:.4f}  value_loss: {value_loss:.4f}  entropy: {entropy:.4f}  approx_kl: {approx_kl:.4f}  clip_frac: {clip_frac:.3f}  explained_var: {explained_var:.4f}")
+        csv_writer.writerow({
+            "iteration": iteration + 1,
+            "mean_reward": round(float(buffer.rewards.mean()), 4),
+            "mean_value": round(float(buffer.values.mean()), 4),
+            "mean_advantage": round(float(buffer.advantages.mean()), 4),
+            "mean_ep_len": round(mean_ep_len, 1),
+            "policy_loss": round(policy_loss, 4),
+            "value_loss": round(value_loss, 4),
+            "entropy": round(entropy, 4),
+            "approx_kl": round(approx_kl, 4),
+            "clip_frac": round(clip_frac, 4),
+            "explained_var": round(float(explained_var), 4),
+        })
+        log_file.flush()  # write to disk immediately in case of crash
 
     if (iteration + 1) % checkpoint_interval == 0:
         torch.save({
@@ -146,4 +173,5 @@ for iteration in range(start_iteration, max_iterations):
     buffer.clear()  # Clear buffer for the next iteration
 
 torch.save(policy.state_dict(), "policy.pt")
+log_file.close()
 env.close()
