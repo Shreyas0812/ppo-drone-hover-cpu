@@ -3,7 +3,7 @@ import torch.nn as nn
 from torch.distributions import Normal
 
 class ActorCritic(nn.Module):
-    def __init__(self, obs_dim, action_dim, hidden=[128, 128]):
+    def __init__(self, obs_dim: int, action_dim: int, hidden: list[int] = [128, 128]) -> None:
         super().__init__()
 
         # Actor: obs -> action mean
@@ -44,7 +44,7 @@ class ActorCritic(nn.Module):
         Higher capacity for critic because it needs to learn a more complex function (mapping from state to expected return) compared to the actor which only needs to learn the mean action.
         """
 
-    def get_action(self, obs):
+    def get_action(self, obs: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
         """
         Returns action, log probability of the action, and value estimate for the given observation.
         """
@@ -61,7 +61,7 @@ class ActorCritic(nn.Module):
 
         return action, log_prob, value
 
-    def evaluate(self, obs, action):
+    def evaluate(self, obs: torch.Tensor, action: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
         """
         Evaluate stored (obs, action) pairs with current policy weights. Used for computing loss during training.
         """

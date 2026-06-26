@@ -18,7 +18,7 @@ returns_t   = A_t + V(s_t)
 """
 
 class RolloutBuffer:
-    def __init__(self, n_steps, obs_dim, action_dim):
+    def __init__(self, n_steps: int, obs_dim: int, action_dim: int) -> None:
         self.n_steps = n_steps
         self.obs = torch.zeros((n_steps, obs_dim), dtype=torch.float32)
         self.actions = torch.zeros((n_steps, action_dim), dtype=torch.float32)
@@ -32,7 +32,7 @@ class RolloutBuffer:
 
         self.ptr = 0
     
-    def store(self, obs, action, reward, done, value, log_prob):
+    def store(self, obs: torch.Tensor, action: torch.Tensor, reward: float, done: bool, value: torch.Tensor, log_prob: torch.Tensor) -> None:
         # Convert to tensor and squeeze the drone batch dimension (1, dim) -> (dim,)
         obs = torch.as_tensor(obs, dtype=torch.float32).squeeze(0)
         action = torch.as_tensor(action, dtype=torch.float32).squeeze(0)
@@ -50,7 +50,7 @@ class RolloutBuffer:
         .detach() severs the tensor from its computation graph before storing, which is correct — these are reference values (old policy), not things we want to differentiate through.
         """
     
-    def compute_returns_and_advantages(self, last_value, gamma=0.95, lam=0.95):
+    def compute_returns_and_advantages(self, last_value: torch.Tensor, gamma: float = 0.95, lam: float = 0.95) -> None:
         """
         Compute GAE advantages and returns for the stored trajectory. looks backward through the trajectory to compute advantages and returns based on rewards, values, and done flags.
         """
@@ -68,7 +68,7 @@ class RolloutBuffer:
 
         self.returns = self.advantages + self.values
 
-    def get(self):
+    def get(self) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
         """
         Return normalized advantages and the rest of the data for training.
         """
@@ -76,10 +76,10 @@ class RolloutBuffer:
         adv = (adv - adv.mean()) / (adv.std() + 1e-8)  # Normalize advantages
         return self.obs, self.actions, self.log_probs, adv, self.returns
     
-    def clear(self):
+    def clear(self) -> None:
         self.ptr = 0
-    
-    def mean_reward(self):
+
+    def mean_reward(self) -> float:
         return self.rewards.mean().item()
     
         

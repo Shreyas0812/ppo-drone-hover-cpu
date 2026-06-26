@@ -1,6 +1,17 @@
 import torch
+from actor_critic import ActorCritic
+from rollout_buffer import RolloutBuffer
 
-def update(policy, optimizer, buffer, clip_epsilon=0.2, value_loss_coef=0.5, entropy_coef=0.03, n_epochs=5, n_minibatches=4):
+def update(
+    policy: ActorCritic,
+    optimizer: torch.optim.Optimizer,
+    buffer: RolloutBuffer,
+    clip_epsilon: float = 0.2,
+    value_loss_coef: float = 0.5,
+    entropy_coef: float = 0.03,
+    n_epochs: int = 5,
+    n_minibatches: int = 4,
+) -> tuple[float, float, float, float, float]:
 
     obs, actions, old_log_probs, advantages, returns = buffer.get()
 
